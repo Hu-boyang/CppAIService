@@ -44,9 +44,9 @@ public:
         int thread_num,
         HandlerFunc handler)
         : stop_(false),
-        rabbitmq_host_(host),
         queue_name_(queue),
         thread_num_(thread_num),
+        rabbitmq_host_(host),
         handler_(handler) {}
 
     void start();
