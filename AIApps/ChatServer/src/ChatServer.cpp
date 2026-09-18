@@ -28,6 +28,9 @@
 #include "../../../HttpServer/include/http/HttpResponse.h"
 #include "../../../HttpServer/include/http/HttpServer.h"
 
+#include <chrono>
+#include <thread>
+
 
 
 using namespace http;
@@ -78,15 +81,23 @@ void ChatServer::initialize() {
 }
 
 void ChatServer::initChatMessage() {
-
     std::cout << "initChatMessage start ! " << std::endl;
-    readDataFromMySQL();
-    std::cout << "initChatMessage success ! " << std::endl;
+    constexpr int kMaxAttempts = 10;
+    constexpr auto kRetryDelay = std::chrono::milliseconds(200);
+    for (int attempt = 1; attempt <= kMaxAttempts; ++attempt) {
+        if (readDataFromMySQL()) {
+            std::cout << "initChatMessage success ! " << std::endl;
+            return;
+        }
+        if (attempt == kMaxAttempts) {
+            std::cerr << "initChatMessage failed after " << kMaxAttempts << " attempts" << std::endl;
+            return;
+        }
+        std::this_thread::sleep_for(kRetryDelay);
+    }
 }
 
-void ChatServer::readDataFromMySQL() {
-
-
+bool ChatServer::readDataFromMySQL() {
     std::string sql = "SELECT id, username,session_id, is_user, content, ts FROM chat_message ORDER BY ts ASC, id ASC";
 
     sql::ResultSet* res;
@@ -95,7 +106,7 @@ void ChatServer::readDataFromMySQL() {
     }
     catch (const std::exception& e) {
         std::cerr << "MySQL query failed: " << e.what() << std::endl;
-        return;
+        return false;
     }
 
     while (res->next()) {
@@ -134,6 +145,7 @@ void ChatServer::readDataFromMySQL() {
     }
 
     std::cout << "readDataFromMySQL finished" << std::endl;
+    return true;
 }
 
 std::pair<std::string, std::shared_ptr<AIHelper>> ChatServer::createEmptySession(int userId) {

@@ -83,7 +83,7 @@ private:
 	void initializeMiddleware();
 	
 
-	void readDataFromMySQL();
+	bool readDataFromMySQL();
 
 	std::pair<std::string, std::shared_ptr<AIHelper>> createEmptySession(int userId);
 
