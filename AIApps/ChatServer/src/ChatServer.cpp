@@ -126,6 +126,9 @@ bool ChatServer::readDataFromMySQL() {
             continue; 
         }
 
+        // 获取对应的std::unordered_map<std::string,std::shared_ptr<AIHelper>>会话记录
+        // userid -> 多个sessionid。每个 sessionid 有一个 AIHelper 实例
+        // sessionid 就是一个用户一个会话唯一标识，AIHelper 实例是用来存储会话记录的
         auto& userSessions = chatInformation[user_id];
 
         std::shared_ptr<AIHelper> helper;
