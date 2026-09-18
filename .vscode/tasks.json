@@ -37,7 +37,7 @@
     {
       "label": "编译并启动容器",
       "type": "shell",
-      "command": "cmake --build --preset conan-release --target http_server && python3 scripts/restart.py ensure",
+      "command": "python3 scripts/build.py && python3 scripts/restart.py ensure",
       "options": {
         "cwd": "${workspaceFolder}"
       },

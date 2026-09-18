@@ -1,5 +1,5 @@
 from conan import ConanFile
-from conan.tools.cmake import cmake_layout
+from conan.tools.cmake import CMakeDeps, CMakeToolchain, cmake_layout
 
 
 class CppAIServiceConan(ConanFile):
@@ -46,10 +46,18 @@ class CppAIServiceConan(ConanFile):
         "opencv/*:objdetect": False,
         "libcurl/*:with_ssl": "openssl",
     }
-    generators = "CMakeDeps", "CMakeToolchain"
 
     def layout(self):
         cmake_layout(self)
+
+    def generate(self):
+        # Keep the committed root CMakePresets.json. Conan's default
+        # CMakeUserPresets.json would duplicate the conan-release name.
+        deps = CMakeDeps(self)
+        deps.generate()
+        tc = CMakeToolchain(self)
+        tc.user_presets_path = False
+        tc.generate()
 
     def requirements(self):
         self.requires("openssl/3.3.2")

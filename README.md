@@ -29,14 +29,14 @@ cp docker/app.env.example docker/app.env
 python3 scripts/setup_env.py
 ```
 
-编译并拉起 MySQL、RabbitMQ 和 HTTP 服务（默认 `8116`）：
+编译并拉起 MySQL、RabbitMQ 和 HTTP 服务（默认 `8116`）。仓库里带了 `CMakePresets.json`；第一次编译若还没有 Conan 工具链，会先跑环境配置：
 
 ```bash
-cmake --build --preset conan-release --target http_server
+python3 scripts/build.py
 python3 scripts/restart.py ensure
 ```
 
-浏览器打开 http://127.0.0.1:8116 。在 VS Code / Cursor 里也可以先跑任务「配置开发环境」，再跑「编译并启动容器」。
+浏览器打开 http://127.0.0.1:8116 。在 VS Code / Cursor 里直接跑「编译并启动容器」即可；首次打开仓库缺少依赖时会自动配置。也可以先单独跑「配置开发环境」。
 
 如果要本机 ONNX 识图：
 

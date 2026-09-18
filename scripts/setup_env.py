@@ -293,9 +293,9 @@ def configure_cmake() -> None:
     cmake = which("cmake")
     if cmake is None:
         raise SystemExit("未找到 cmake，请先安装 cmake")
-    preset = ROOT / "build" / "Release" / "generators" / "CMakePresets.json"
-    if not preset.exists():
-        raise SystemExit(f"Conan 未生成 {preset}，请检查 conan install 是否成功")
+    toolchain = ROOT / "build" / "Release" / "generators" / "conan_toolchain.cmake"
+    if not toolchain.exists():
+        raise SystemExit(f"Conan 未生成 {toolchain}，请检查 conan install 是否成功")
     log("==> 配置 CMake preset conan-release")
     run([cmake, "--preset", "conan-release"])
 
@@ -352,7 +352,7 @@ def main() -> int:
 
     log("\n环境配置完成。")
     if target in ("all", "cpp"):
-        log("下一步: 运行任务「编译 C++」")
+        log("下一步: 运行任务「编译并启动容器」")
     if target in ("all", "docker"):
         log("下一步: 编译完成后运行任务「启动项目容器」")
         log("若对话/语音要用云端 API，请编辑 docker/app.env")
