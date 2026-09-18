@@ -53,4 +53,4 @@ cmake --build --preset conan-release --target http_server
 
 ## 许可证
 
-[GPL-3.0](LICENSE)。在原作基础上改过，日期 2026-09-18。再分发时请保留许可证和版权信息，并注明你改过。
+[GPL-3.0](LICENSE)。
