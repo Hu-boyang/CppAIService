@@ -1,0 +1,25 @@
+CREATE DATABASE IF NOT EXISTS ChatHttpServer
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_unicode_ci;
+
+USE ChatHttpServer;
+
+CREATE TABLE IF NOT EXISTS users (
+  id INT NOT NULL AUTO_INCREMENT,
+  username VARCHAR(64) NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS chat_message (
+  pk BIGINT NOT NULL AUTO_INCREMENT,
+  id INT NOT NULL,
+  username VARCHAR(64) NOT NULL,
+  session_id BIGINT NOT NULL,
+  is_user TINYINT NOT NULL,
+  content MEDIUMTEXT,
+  ts BIGINT NOT NULL,
+  PRIMARY KEY (pk),
+  KEY idx_user_ts (id, ts)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

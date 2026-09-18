@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CppAI · 登录</title>
+<style>
+    :root {
+        --bg: #0f1115;
+        --bg-elev: #171a21;
+        --border: rgba(255, 255, 255, 0.08);
+        --text: #e8eaed;
+        --muted: #9aa3b2;
+        --accent: #6b8afd;
+        --accent-hover: #849cff;
+        --danger: #f07178;
+        --radius: 16px;
+        --font: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font);
+        color: var(--text);
+        background:
+            radial-gradient(1200px 600px at 10% -10%, rgba(107, 138, 253, 0.18), transparent 50%),
+            radial-gradient(800px 400px at 100% 100%, rgba(107, 138, 253, 0.08), transparent 40%),
+            var(--bg);
+    }
+    .wrap { width: min(420px, calc(100% - 32px)); }
+    .brand {
+        text-align: center;
+        margin-bottom: 28px;
+    }
+    .brand h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        font-weight: 650;
+        letter-spacing: 0.02em;
+    }
+    .brand p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+    }
+    .card {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 28px 24px 22px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+    }
+    .card h2 {
+        margin: 0 0 20px;
+        font-size: 18px;
+        font-weight: 600;
+    }
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+        display: block;
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 6px;
+    }
+    .form-group input {
+        width: 100%;
+        padding: 11px 12px;
+        font-size: 14px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #12151c;
+        color: var(--text);
+        outline: none;
+        font-family: inherit;
+    }
+    .form-group input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(107, 138, 253, 0.2);
+    }
+    .btn {
+        width: 100%;
+        margin-top: 6px;
+        padding: 11px 16px;
+        border: none;
+        border-radius: 10px;
+        background: var(--accent);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .switch {
+        margin-top: 16px;
+        text-align: center;
+        font-size: 13px;
+        color: var(--muted);
+    }
+    .switch a {
+        color: var(--accent);
+        cursor: pointer;
+    }
+    #register-container { display: none; }
+    #toast {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 10px 18px;
+        border-radius: 999px;
+        display: none;
+        z-index: 20;
+        font-size: 13px;
+    }
+</style>
+</head>
+<body>
+<div id="toast">提示</div>
+<div class="wrap">
+    <div class="brand">
+        <h1>CppAI Service</h1>
+        <p>本地部署的多模型对话服务</p>
+    </div>
+    <div class="card" id="login-container">
+        <h2>登录</h2>
+        <form id="login-form">
+            <div class="form-group">
+                <label for="login-username">用户名</label>
+                <input type="text" id="login-username" placeholder="请输入用户名" autocomplete="username" required>
+            </div>
+            <div class="form-group">
+                <label for="login-password">密码</label>
+                <input type="password" id="login-password" placeholder="请输入密码" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="btn">进入工作台</button>
+        </form>
+        <div class="switch">没有账号？<a onclick="showRegister()">注册</a></div>
+    </div>
+    <div class="card" id="register-container">
+        <h2>注册</h2>
+        <form id="register-form">
+            <div class="form-group">
+                <label for="register-username">用户名</label>
+                <input type="text" id="register-username" placeholder="请输入用户名" autocomplete="username" required>
+            </div>
+            <div class="form-group">
+                <label for="register-password">密码</label>
+                <input type="password" id="register-password" placeholder="请输入密码" autocomplete="new-password" required>
+            </div>
+            <button type="submit" class="btn">创建账号</button>
+        </form>
+        <div class="switch">已有账号？<a onclick="showLogin()">返回登录</a></div>
+    </div>
+</div>
+<script>
+function showAlert(message) {
+    const box = document.getElementById('toast');
+    box.textContent = message;
+    box.style.display = 'block';
+    setTimeout(() => { box.style.display = 'none'; }, 1600);
+}
+function showRegister() {
+    document.getElementById('login-container').style.display = 'none';
+    document.getElementById('register-container').style.display = 'block';
+}
+function showLogin() {
+    document.getElementById('register-container').style.display = 'none';
+    document.getElementById('login-container').style.display = 'block';
+}
+document.getElementById('login-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const username = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+    fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    }).then(response => {
+        if (response.status === 403) { showAlert('账号已在其他地方登录'); throw new Error('已在其他地方登录'); }
+        const contentType = response.headers.get('content-type');
+        if (response.status === 200) {
+            if (contentType && contentType.includes('application/json')) return response.json();
+            throw new Error('返回格式错误');
+        }
+        if (response.status === 401) { showAlert('账号或密码错误'); throw new Error('认证失败'); }
+        throw new Error('请求失败');
+    }).then(data => {
+        if (data && data.userId) {
+            sessionStorage.setItem('userId', data.userId);
+            showAlert('登录成功');
+            window.location.href = '/menu';
+        } else throw new Error('无效的响应数据');
+    }).catch(error => {
+        if (!error.message.includes('已在其他地方登录') && !error.message.includes('认证失败')) {
+            showAlert('操作失败，请重试');
+        }
+    });
+});
+document.getElementById('register-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const username = document.getElementById('register-username').value;
+    const password = document.getElementById('register-password').value;
+    fetch('/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    }).then(response => {
+        if (response.status === 200) {
+            showAlert('注册成功');
+            document.getElementById('login-username').value = username;
+            document.getElementById('login-password').value = password;
+            setTimeout(showLogin, 900);
+        } else if (response.status === 409) {
+            showAlert('用户名已被注册');
+        }
+    }).catch(() => showAlert('注册失败'));
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+build/
+.venv/
+CMakeUserPresets.json
+CMakePresets.json
+/compile_commands.json
+/conanbuild*.sh
+/conanrun*.sh
+/deactivate_conan*.sh
+conanbuildenv-*.sh
+conanrunenv-*.sh
+.env
+docker/app.env

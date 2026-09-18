@@ -1,0 +1,15 @@
+.git
+.venv
+.env
+docker/app.env
+新建 Text Document.txt
+conan
+**/CMakeFiles
+build/Release/generators
+build/Release/CMakeFiles
+build/Release/CMakeCache.txt
+build/Release/Makefile
+build/Release/*.cmake
+*.o
+*.a
+agent-transcripts

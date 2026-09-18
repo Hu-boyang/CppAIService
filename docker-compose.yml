@@ -1,0 +1,74 @@
+name: cppai
+
+services:
+  mysql:
+    image: mysql:8.0
+    pull_policy: missing
+    container_name: cppai-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_DATABASE: ChatHttpServer
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p123456"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    pull_policy: missing
+    container_name: cppai-rabbitmq
+    restart: unless-stopped
+    volumes:
+      - ./docker/rabbitmq.conf:/etc/rabbitmq/conf.d/99-guest.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  http:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      pull: false
+      args:
+        BINARY_MTIME: ${BINARY_MTIME:-0}
+    image: cppai-httpserver:qwen38
+    pull_policy: missing
+    container_name: cppai-http
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8116:8116"
+    volumes:
+      - ./AIApps/ChatServer/resource/kb:/app/AIApps/ChatServer/resource/kb
+    env_file:
+      - docker/app.env
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: "123456"
+      MYSQL_DATABASE: ChatHttpServer
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+      HTTP_PORT: 8116
+      CHAT_RESOURCE_DIR: /app/AIApps/ChatServer/resource
+
+volumes:
+  mysql_data:

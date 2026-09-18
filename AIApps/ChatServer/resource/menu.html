@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CppAI · 工作台</title>
+    <style>
+        :root {
+            --bg: #0f1115;
+            --bg-elev: #171a21;
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #e8eaed;
+            --muted: #9aa3b2;
+            --accent: #6b8afd;
+            --accent-hover: #849cff;
+            --radius: 16px;
+            --font: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: var(--font);
+            color: var(--text);
+            background:
+                radial-gradient(1000px 500px at 80% -20%, rgba(107, 138, 253, 0.16), transparent 50%),
+                var(--bg);
+        }
+        .shell {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 56px 24px 40px;
+        }
+        h1 {
+            margin: 0 0 8px;
+            font-size: 28px;
+            font-weight: 650;
+        }
+        .subtitle {
+            margin: 0 0 32px;
+            color: var(--muted);
+            font-size: 15px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+        }
+        .card {
+            display: block;
+            padding: 22px 20px;
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: inherit;
+            text-decoration: none;
+            cursor: pointer;
+            transition: border-color 0.15s, transform 0.15s;
+        }
+        .card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+        .card h2 {
+            margin: 0 0 8px;
+            font-size: 17px;
+        }
+        .card p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .logout {
+            margin-top: 28px;
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 16px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .logout:hover { color: var(--text); }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <h1>工作台</h1>
+        <p class="subtitle">选择一个服务开始。对话使用 qwen3.8-27b，需要时会检索知识库或联网搜索。</p>
+        <div class="grid">
+            <a class="card" href="/chat">
+                <h2>AI 对话</h2>
+                <p>多会话聊天，按需检索知识库或联网搜索。</p>
+            </a>
+            <a class="card" href="/kb">
+                <h2>知识库</h2>
+                <p>在线上传 .txt / .md，检索本地 RAG 文档。</p>
+            </a>
+            <a class="card" href="/upload">
+                <h2>图像识别</h2>
+                <p>上传图片进行分类（需开启视觉组件）。</p>
+            </a>
+        </div>
+        <button class="logout" id="logout">退出登录</button>
+    </div>
+    <script>
+        window.addEventListener('load', function () {
+            if (!sessionStorage.getItem('userId')) {
+                window.location.href = '/entry';
+            }
+        });
+        document.getElementById('logout').addEventListener('click', () => {
+            const userId = sessionStorage.getItem('userId');
+            fetch('/user/logout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: userId })
+            }).then(res => {
+                if (!res.ok) throw new Error('Logout failed');
+                sessionStorage.clear();
+                window.location.href = '/';
+            }).catch(() => alert('退出登录失败'));
+        });
+    </script>
+</body>
+</html>

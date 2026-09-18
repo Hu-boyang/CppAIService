@@ -1,0 +1,28 @@
+# clangd 通过 CMake 生成的 compile_commands.json 读取 Conan 依赖
+#（muduo / boost / openssl 等），不要把 ~/.conan2 的哈希路径写死在这里。
+CompileFlags:
+  CompilationDatabase: build/Release
+  Add:
+    - --target=x86_64-linux-gnu
+    - -std=c++17
+    - -Wall
+  Remove:
+    - -Werror
+    - -m64
+
+Index:
+  Background: Build
+
+Diagnostics:
+  UnusedIncludes: None
+  Suppress:
+    - drv_unknown_argument
+    - unused-command-line-argument
+
+---
+If:
+  PathMatch: .*\.(h|hh|hpp|hxx)
+CompileFlags:
+  Add:
+    - -xc++
+    - -std=c++17

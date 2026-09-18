@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CppAI · 知识库</title>
+    <style>
+        :root {
+            --bg: #0f1115;
+            --bg-elev: #171a21;
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #e8eaed;
+            --muted: #9aa3b2;
+            --accent: #6b8afd;
+            --radius: 16px;
+            --font: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: var(--font);
+            color: var(--text);
+            background: var(--bg);
+        }
+        .top-bar {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .back-btn {
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg-elev);
+            color: var(--text);
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .shell {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 28px 20px 40px;
+        }
+        h1 { margin: 0 0 8px; font-size: 24px; }
+        .subtitle { margin: 0 0 24px; color: var(--muted); font-size: 14px; }
+        .stats { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+        .card {
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px;
+            margin-bottom: 16px;
+        }
+        .card h2 { margin: 0 0 12px; font-size: 16px; }
+        .row { display: flex; gap: 10px; flex-wrap: wrap; }
+        input[type="file"], input[type="text"] {
+            flex: 1;
+            min-width: 180px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            padding: 8px 10px;
+            background: #12151c;
+            color: var(--text);
+            font-family: inherit;
+        }
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 10px;
+            background: var(--accent);
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+        .files, .hits { list-style: none; margin: 0; padding: 0; }
+        .files li, .hit {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+        .hit .meta { color: var(--muted); margin-bottom: 6px; }
+        .hit .text { white-space: pre-wrap; line-height: 1.5; color: var(--text); }
+        .empty { color: var(--muted); font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <button class="back-btn" onclick="window.location.href='/menu'">返回</button>
+    </div>
+    <div class="shell">
+        <h1>知识库</h1>
+        <p class="subtitle">在线上传 .txt / .md，立即重建索引。对话顶栏默认勾选「检索知识库」即可引用这些文档。</p>
+        <div class="stats" id="stats">正在加载…</div>
+
+        <div class="card">
+            <h2>上传文档</h2>
+            <div class="row">
+                <input type="file" id="file-input" accept=".txt,.md,text/plain,text/markdown">
+                <button type="button" id="upload-btn">上传并索引</button>
+            </div>
+            <p class="hint" id="upload-status"></p>
+        </div>
+
+        <div class="card">
+            <h2>已有文档</h2>
+            <ul class="files" id="file-list"></ul>
+        </div>
+
+        <div class="card">
+            <h2>在线检索</h2>
+            <div class="row">
+                <input type="text" id="query-input" placeholder="输入关键词，例如：项目如何启动">
+                <button type="button" id="search-btn">检索</button>
+            </div>
+            <div id="search-results" style="margin-top: 14px;"></div>
+        </div>
+    </div>
+    <script>
+        const statsEl = document.getElementById('stats');
+        const fileListEl = document.getElementById('file-list');
+        const uploadStatus = document.getElementById('upload-status');
+        const searchResults = document.getElementById('search-results');
+
+        async function readJson(res) {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.status === 'error') {
+                throw new Error(data.message || ('HTTP ' + res.status));
+            }
+            return data;
+        }
+
+        async function refreshList() {
+            const data = await readJson(await fetch('/kb/list'));
+            statsEl.textContent = '文档 ' + (data.fileCount || 0) + ' 个 · 切片 ' + (data.chunkCount || 0) + ' 段';
+            const files = data.files || [];
+            if (!files.length) {
+                fileListEl.innerHTML = '<li class="empty">还没有文档。上传 .txt 或 .md 后会出现在这里。</li>';
+                return;
+            }
+            fileListEl.innerHTML = files.map((name) => '<li>' + name + '</li>').join('');
+        }
+
+        document.getElementById('upload-btn').addEventListener('click', async () => {
+            const input = document.getElementById('file-input');
+            if (!input.files.length) {
+                uploadStatus.textContent = '请先选择 .txt 或 .md 文件';
+                return;
+            }
+            const file = input.files[0];
+            const content = await file.text();
+            uploadStatus.textContent = '正在上传并重建索引…';
+            try {
+                const data = await readJson(await fetch('/kb/upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: file.name, content })
+                }));
+                uploadStatus.textContent = '已索引：' + data.filename;
+                input.value = '';
+                await refreshList();
+            } catch (err) {
+                uploadStatus.textContent = '[错误] ' + err.message;
+            }
+        });
+
+        document.getElementById('search-btn').addEventListener('click', async () => {
+            const query = document.getElementById('query-input').value.trim();
+            if (!query) return;
+            searchResults.innerHTML = '<p class="empty">检索中…</p>';
+            try {
+                const data = await readJson(await fetch('/kb/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                }));
+                const hits = data.results || [];
+                if (!hits.length) {
+                    searchResults.innerHTML = '<p class="empty">没有命中片段。可换关键词，或先上传文档。</p>';
+                    return;
+                }
+                searchResults.innerHTML = hits.map((hit, i) =>
+                    '<div class="hit"><div class="meta">[' + (i + 1) + '] ' + hit.source +
+                    ' · 分数 ' + Number(hit.score).toFixed(3) + '</div><div class="text">' +
+                    String(hit.text || '').replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) +
+                    '</div></div>'
+                ).join('');
+            } catch (err) {
+                searchResults.innerHTML = '<p class="empty">[错误] ' + err.message + '</p>';
+            }
+        });
+
+        document.getElementById('query-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') document.getElementById('search-btn').click();
+        });
+
+        window.addEventListener('load', () => {
+            if (!sessionStorage.getItem('userId')) {
+                window.location.href = '/entry';
+                return;
+            }
+            refreshList().catch((err) => {
+                statsEl.textContent = '[错误] ' + err.message;
+            });
+        });
+    </script>
+</body>
+</html>
