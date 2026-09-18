@@ -1,6 +1,20 @@
 #include"../include/AIUtil/MQManager.h"
 #include"../include/AIUtil/EnvUtil.h"
 
+namespace {
+AmqpClient::Channel::ptr_t openChannel(const std::string& host, int port,
+                                       const std::string& user,
+                                       const std::string& password,
+                                       const std::string& vhost = "/") {
+    AmqpClient::Channel::OpenOpts opts;
+    opts.host = host;
+    opts.port = port;
+    opts.vhost = vhost;
+    opts.auth = AmqpClient::Channel::OpenOpts::BasicAuth(user, password);
+    return AmqpClient::Channel::Open(opts);
+}
+}
+
 // ------------------- MQManager -------------------
 MQManager::MQManager(size_t poolSize)
     : poolSize_(poolSize), counter_(0) {
@@ -10,7 +24,7 @@ MQManager::MQManager(size_t poolSize)
     const std::string password = envOr("RABBITMQ_PASSWORD", "guest");
     for (size_t i = 0; i < poolSize_; ++i) {
         auto conn = std::make_shared<MQConn>();
-        conn->channel = AmqpClient::Channel::Create(host, port, user, password, "/");
+        conn->channel = openChannel(host, port, user, password);
 
         pool_.push_back(conn);
     }
@@ -46,7 +60,7 @@ void RabbitMQThreadPool::worker(int id) {
         const int port = envOrInt("RABBITMQ_PORT", 5672);
         const std::string user = envOr("RABBITMQ_USER", "guest");
         const std::string password = envOr("RABBITMQ_PASSWORD", "guest");
-        auto channel = AmqpClient::Channel::Create(rabbitmq_host_, port, user, password, "/");
+        auto channel = openChannel(rabbitmq_host_, port, user, password);
         // set exclusive
         channel->DeclareQueue(queue_name_, false, true, false, false);
         // Prevent channel error: 403: AMQP_BASIC_CONSUME_METHOD caused: ACCESS_REFUSED - queue 
