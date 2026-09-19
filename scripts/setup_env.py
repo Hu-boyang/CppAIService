@@ -289,6 +289,13 @@ def install_conan_deps(conan: str) -> None:
     )
 
 
+def drop_stale_user_presets() -> None:
+    user_presets = ROOT / "CMakeUserPresets.json"
+    if user_presets.exists():
+        log("==> 移除过期的 CMakeUserPresets.json，避免 Duplicate preset: conan-release")
+        user_presets.unlink()
+
+
 def configure_cmake() -> None:
     cmake = which("cmake")
     if cmake is None:
@@ -296,6 +303,7 @@ def configure_cmake() -> None:
     toolchain = ROOT / "build" / "Release" / "generators" / "conan_toolchain.cmake"
     if not toolchain.exists():
         raise SystemExit(f"Conan 未生成 {toolchain}，请检查 conan install 是否成功")
+    drop_stale_user_presets()
     log("==> 配置 CMake preset conan-release")
     run([cmake, "--preset", "conan-release"])
 
