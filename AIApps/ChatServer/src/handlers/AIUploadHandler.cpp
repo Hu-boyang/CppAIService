@@ -1,6 +1,7 @@
 #include "../include/handlers/AIUploadHandler.h"
 
-
+// 这是 GET /upload 处理逻辑所以跟AIMenuHandler.cpp 差不多，但是这里没有文件上传功能，所以不需要处理文件上传。
+// 上传文件使用的是 POST /upload 处理逻辑。
 void AIUploadHandler::handle(const http::HttpRequest& req, http::HttpResponse* resp)
 {
     try

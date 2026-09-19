@@ -14,6 +14,11 @@ void AIMenuHandler::handle(const http::HttpRequest& req, http::HttpResponse* res
             json errorResp;
             errorResp["status"] = "error";
             errorResp["message"] = "Unauthorized";
+            // indent 4 表示缩进四个空格类似下面这样：
+            // {
+            //     "status": "error",
+            //     "message": "Unauthorized"
+            // }
             std::string errorBody = errorResp.dump(4);
 
             server_->packageResp(req.getVersion(), http::HttpResponse::k401Unauthorized,
