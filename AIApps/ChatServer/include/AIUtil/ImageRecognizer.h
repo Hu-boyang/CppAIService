@@ -10,21 +10,24 @@
 #include <onnxruntime_cxx_api.h>
 #endif
 
+struct PredictionResult {
+    std::string className;
+    double confidence = 0.0;
+};
+
 class ImageRecognizer {
 public:
     explicit ImageRecognizer(const std::string& model_path = "",
                              const std::string& label_path = "");
 
-    std::string PredictFromFile(const std::string& image_path);
-    std::string PredictFromBuffer(const std::vector<unsigned char>& image_data);
-    double lastConfidence() const { return last_confidence_; }
+    PredictionResult PredictFromFile(const std::string& image_path);
+    PredictionResult PredictFromBuffer(const std::vector<unsigned char>& image_data);
 
 #ifdef CPPAI_WITH_VISION
-    std::string PredictFromMat(const cv::Mat& img);
+    PredictionResult PredictFromMat(const cv::Mat& img);
 #endif
 
 private:
-    double last_confidence_ = 0.0;
     std::mutex mutex_;
 
 #ifdef CPPAI_WITH_VISION
@@ -41,6 +44,6 @@ private:
 
     void LoadLabels(const std::string& label_path);
 #else
-    std::string PredictWithDashScope(const std::vector<unsigned char>& image_data);
+    PredictionResult PredictWithDashScope(const std::vector<unsigned char>& image_data);
 #endif
 };

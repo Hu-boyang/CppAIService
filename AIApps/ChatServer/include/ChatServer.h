@@ -91,6 +91,8 @@ private:
 		const std::string& statusMsg, bool close, const std::string& contentType,
 		int contentLen, const std::string& body, http::HttpResponse* resp);
 
+	std::shared_ptr<ImageRecognizer> getImageRecognizer();
+
 	void setSessionManager(std::unique_ptr<http::session::SessionManager> manager)
 	{
 		httpServer_.setSessionManager(std::move(manager));
@@ -114,8 +116,8 @@ private:
 	std::unordered_map<int, std::unordered_map<std::string,std::shared_ptr<AIHelper> > > chatInformation;
 	std::mutex	mutexForChatInformation;
 
-	std::unordered_map<int, std::shared_ptr<ImageRecognizer> > ImageRecognizerMap;
-	std::mutex	mutexForImageRecognizerMap;
+	std::shared_ptr<ImageRecognizer> imageRecognizer_;
+	std::mutex mutexForImageRecognizer_;
 
 	std::unordered_map<int,std::vector<std::string> > sessionsIdsMap;
 	std::mutex mutexForSessionsId;

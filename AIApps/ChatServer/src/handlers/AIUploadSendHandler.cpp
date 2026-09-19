@@ -22,18 +22,6 @@ void AIUploadSendHandler::handle(const http::HttpRequest& req, http::HttpRespons
             return;
         }
 
-        int userId = std::stoi(session->getValue("userId"));
-        (void)userId;
-        std::shared_ptr<ImageRecognizer> ImageRecognizerPtr;
-        {
-            std::lock_guard<std::mutex> lock(server_->mutexForImageRecognizerMap);
-            auto& slot = server_->ImageRecognizerMap[0];
-            if (!slot) {
-                slot = std::make_shared<ImageRecognizer>();
-            }
-            ImageRecognizerPtr = slot;
-        }
-
         auto body = req.getBody();
         std::string filename;
         std::string imageBase64;
@@ -50,13 +38,14 @@ void AIUploadSendHandler::handle(const http::HttpRequest& req, http::HttpRespons
         std::string decodedData = base64_decode(imageBase64);
         std::vector<unsigned char> imgData(decodedData.begin(), decodedData.end());
 
-        std::string className = ImageRecognizerPtr->PredictFromBuffer(imgData);
+        const PredictionResult prediction =
+            server_->getImageRecognizer()->PredictFromBuffer(imgData);
 
         json successResp;
         successResp["success"] = "ok";
         successResp["filename"] = filename;
-        successResp["class_name"] = className;
-        successResp["confidence"] = ImageRecognizerPtr->lastConfidence();
+        successResp["class_name"] = prediction.className;
+        successResp["confidence"] = prediction.confidence;
 
 
         std::string successBody = successResp.dump(4);

@@ -93,7 +93,7 @@ void ImageRecognizer::LoadLabels(const std::string& label_path) {
     }
 }
 
-std::string ImageRecognizer::PredictFromFile(const std::string& image_path) {
+PredictionResult ImageRecognizer::PredictFromFile(const std::string& image_path) {
     cv::Mat img = cv::imread(image_path);
     if (img.empty()) {
         throw std::runtime_error("Failed to load image: " + image_path);
@@ -101,7 +101,7 @@ std::string ImageRecognizer::PredictFromFile(const std::string& image_path) {
     return PredictFromMat(img);
 }
 
-std::string ImageRecognizer::PredictFromBuffer(const std::vector<unsigned char>& image_data) {
+PredictionResult ImageRecognizer::PredictFromBuffer(const std::vector<unsigned char>& image_data) {
     cv::Mat img = cv::imdecode(image_data, cv::IMREAD_COLOR);
     if (img.empty()) {
         throw std::runtime_error("Failed to decode image from buffer");
@@ -109,7 +109,7 @@ std::string ImageRecognizer::PredictFromBuffer(const std::vector<unsigned char>&
     return PredictFromMat(img);
 }
 
-std::string ImageRecognizer::PredictFromMat(const cv::Mat& img_raw) {
+PredictionResult ImageRecognizer::PredictFromMat(const cv::Mat& img_raw) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (img_raw.empty()) {
         throw std::runtime_error("Input image is empty");
@@ -143,21 +143,21 @@ std::string ImageRecognizer::PredictFromMat(const cv::Mat& img_raw) {
     for (int i = 0; i < num_classes; ++i) {
         sumExp += std::exp(static_cast<double>(output_data[i]));
     }
-    last_confidence_ = sumExp > 0.0
+    PredictionResult result;
+    result.confidence = sumExp > 0.0
         ? std::exp(static_cast<double>(output_data[pred_class])) / sumExp
         : 0.0;
-
-    if (pred_class >= 0 && pred_class < static_cast<int>(labels.size())) {
-        return labels[pred_class];
-    }
-    return "Unknown";
+    result.className = (pred_class >= 0 && pred_class < static_cast<int>(labels.size()))
+        ? labels[pred_class]
+        : "Unknown";
+    return result;
 }
 
 #else
 
 ImageRecognizer::ImageRecognizer(const std::string&, const std::string&) {}
 
-std::string ImageRecognizer::PredictFromFile(const std::string& image_path) {
+PredictionResult ImageRecognizer::PredictFromFile(const std::string& image_path) {
     std::ifstream in(image_path, std::ios::binary);
     if (!in) {
         throw std::runtime_error("Failed to load image: " + image_path);
@@ -167,12 +167,12 @@ std::string ImageRecognizer::PredictFromFile(const std::string& image_path) {
     return PredictFromBuffer(data);
 }
 
-std::string ImageRecognizer::PredictFromBuffer(const std::vector<unsigned char>& image_data) {
+PredictionResult ImageRecognizer::PredictFromBuffer(const std::vector<unsigned char>& image_data) {
     std::lock_guard<std::mutex> lock(mutex_);
     return PredictWithDashScope(image_data);
 }
 
-std::string ImageRecognizer::PredictWithDashScope(const std::vector<unsigned char>& image_data) {
+PredictionResult ImageRecognizer::PredictWithDashScope(const std::vector<unsigned char>& image_data) {
     if (image_data.empty()) {
         throw std::runtime_error("图片为空");
     }
@@ -274,26 +274,29 @@ std::string ImageRecognizer::PredictWithDashScope(const std::vector<unsigned cha
         throw std::runtime_error("图像识别未返回结果");
     }
 
-    last_confidence_ = 0.85;
+    PredictionResult result;
+    result.confidence = 0.85;
     const std::string jsonText = extractJsonObject(content);
     if (!jsonText.empty()) {
         try {
             json parsed = json::parse(jsonText);
             if (parsed.contains("confidence") && parsed["confidence"].is_number()) {
-                last_confidence_ = parsed["confidence"].get<double>();
-                if (last_confidence_ < 0.0) last_confidence_ = 0.0;
-                if (last_confidence_ > 1.0) last_confidence_ = 1.0;
+                result.confidence = parsed["confidence"].get<double>();
+                if (result.confidence < 0.0) result.confidence = 0.0;
+                if (result.confidence > 1.0) result.confidence = 1.0;
             }
             if (parsed.contains("class_name") && parsed["class_name"].is_string()) {
                 const std::string name = parsed["class_name"].get<std::string>();
                 if (!name.empty()) {
-                    return name;
+                    result.className = name;
+                    return result;
                 }
             }
         } catch (...) {
         }
     }
-    return content;
+    result.className = content;
+    return result;
 }
 
 #endif

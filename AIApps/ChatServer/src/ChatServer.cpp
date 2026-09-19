@@ -260,3 +260,12 @@ void ChatServer::packageResp(const std::string& version,
         resp->setCloseConnection(true);
     }
 }
+
+std::shared_ptr<ImageRecognizer> ChatServer::getImageRecognizer()
+{
+    std::lock_guard<std::mutex> lock(mutexForImageRecognizer_);
+    if (!imageRecognizer_) {
+        imageRecognizer_ = std::make_shared<ImageRecognizer>();
+    }
+    return imageRecognizer_;
+}

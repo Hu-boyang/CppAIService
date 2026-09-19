@@ -39,6 +39,16 @@ bool HttpContext::parseRequest(Buffer *buf, Timestamp receiveTime)
         else if (state_ == kExpectHeaders)
         {
             // 这里可能有多个键值对，但是每次state_都是kExpectHeaders 所以一直在这里循环处理
+            // 这里不会和把 head 和 body 混淆因为 http 格式如下：
+            /*
+                POST /upload/send HTTP/1.1\r\n          ← kExpectRequestLine
+                Content-Type: application/json\r\n     ← kExpectHeaders（这里才找 :）
+                Content-Length: 120\r\n
+                \r\n                                    ← 空行，Header 结束
+                {"filename":"a.jpg","image":"..."}     ← kExpectBody，整段当字节拷走
+                因为二者之间存在空行
+            */
+            // 所以这里不会和把 head 和 body 混淆
             const char *crlf = buf->findCRLF();
             if (crlf)
             {
