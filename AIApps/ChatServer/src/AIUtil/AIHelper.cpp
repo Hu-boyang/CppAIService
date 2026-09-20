@@ -144,7 +144,7 @@ std::string AIHelper::chat(int userId,std::string userName, std::string sessionI
         const bool lastAllowedRound = llmRounds >= kMaxLlmRounds;
         std::vector<AIToolCall> calls;
         if (!lastAllowedRound) {
-            calls = config.parseAIResponse(lastText);
+            calls = config.parseToolCalls(lastText);
         }
 
         std::vector<AIToolCall> pending;

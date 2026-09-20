@@ -1,5 +1,7 @@
 #include"../include/AIUtil/AIConfig.h"
 
+#include <unordered_set>
+
 bool AIConfig::loadFromFile(const std::string& path) {
     std::ifstream file(path);
     if (!file.is_open()) {
@@ -110,6 +112,7 @@ bool parseOneToolCall(const json& node, AIToolCall& call) {
     if (node.contains("args") && node["args"].is_object()) {
         call.args = node["args"];
     } else {
+        // 就是让 args = {}
         call.args = json::object();
     }
     return true;
@@ -142,7 +145,7 @@ void appendToolCalls(const json& node, std::vector<AIToolCall>& calls) {
 
 }  // namespace
 
-std::vector<AIToolCall> AIConfig::parseAIResponse(const std::string& response) const {
+std::vector<AIToolCall> AIConfig::parseToolCalls(const std::string& response) const {
     std::vector<AIToolCall> calls;
     size_t pos = 0;
     while (pos < response.size()) {
@@ -157,15 +160,12 @@ std::vector<AIToolCall> AIConfig::parseAIResponse(const std::string& response) c
     }
 
     std::vector<AIToolCall> unique;
+    std::unordered_set<std::string> seen;
+    unique.reserve(calls.size());
+    seen.reserve(calls.size());
     for (auto& call : calls) {
-        bool duplicated = false;
-        for (const auto& seen : unique) {
-            if (seen.toolName == call.toolName && seen.args.dump() == call.args.dump()) {
-                duplicated = true;
-                break;
-            }
-        }
-        if (!duplicated) {
+        const std::string key = call.toolName + '\n' + call.args.dump();
+        if (seen.insert(key).second) {
             unique.push_back(std::move(call));
         }
     }

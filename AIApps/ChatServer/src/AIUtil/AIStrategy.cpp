@@ -38,6 +38,18 @@ std::string parseDashScopeContent(const json& response) {
     if (!apiError.empty()) {
         return "[Error] " + apiError;
     }
+    // {
+    //   "choices": [
+    //     {
+    //       "index": 0,
+    //       "message": {
+    //         "role": "assistant",
+    //         "content": "这一轮要给用户看的文本（或工具 JSON）"
+    //       },
+    //       "finish_reason": "stop"
+    //     }
+    //   ]
+    // }
     if (!response.contains("choices") || response["choices"].empty()) {
         return {};
     }
