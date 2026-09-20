@@ -1,13 +1,6 @@
 #include"../include/AIUtil/AIConfig.h"
 
-bool AIConfig::\
-
-
-
-
-
-
-loadFromFile(const std::string& path) {
+bool AIConfig::loadFromFile(const std::string& path) {
     std::ifstream file(path);
     if (!file.is_open()) {
         std::cerr << "[AIConfig] Unable to open configuration file: " << path << std::endl;
@@ -65,15 +58,20 @@ std::string AIConfig::buildPrompt(const std::string& userInput) const {
 
 namespace {
 
-std::string extractFirstJsonObject(const std::string& text) {
-    const auto start = text.find('{');
-    if (start == std::string::npos) {
+std::string extractBalancedJson(const std::string& text, size_t& pos) {
+    while (pos < text.size() && text[pos] != '{' && text[pos] != '[') {
+        ++pos;
+    }
+    if (pos >= text.size()) {
         return {};
     }
+
+    const char open = text[pos];
+    const char close = (open == '{') ? '}' : ']';
     int depth = 0;
     bool inString = false;
     bool escape = false;
-    for (size_t i = start; i < text.size(); ++i) {
+    for (size_t i = pos; i < text.size(); ++i) {
         const char c = text[i];
         if (inString) {
             if (escape) {
@@ -87,41 +85,91 @@ std::string extractFirstJsonObject(const std::string& text) {
         }
         if (c == '"') {
             inString = true;
-        } else if (c == '{') {
+        } else if (c == open) {
             ++depth;
-        } else if (c == '}') {
+        } else if (c == close) {
             --depth;
             if (depth == 0) {
-                return text.substr(start, i - start + 1);
+                const std::string value = text.substr(pos, i - pos + 1);
+                pos = i + 1;
+                return value;
             }
         }
     }
     return {};
 }
 
-}  // namespace
-
-AIToolCall AIConfig::parseAIResponse(const std::string& response) const {
-    AIToolCall result;
-    const std::string object = extractFirstJsonObject(response);
-    if (object.empty()) {
-        return result;
+bool parseOneToolCall(const json& node, AIToolCall& call) {
+    if (!node.is_object() || !node.contains("tool") || !node["tool"].is_string()) {
+        return false;
     }
-    try {
-        json j = json::parse(object);
-        if (j.contains("tool") && j["tool"].is_string()) {
-            result.toolName = j["tool"].get<std::string>();
-            if (!result.toolName.empty()) {
-                if (j.contains("args") && j["args"].is_object()) {
-                    result.args = j["args"];
-                }
-                result.isToolCall = true;
+    call.toolName = node["tool"].get<std::string>();
+    if (call.toolName.empty()) {
+        return false;
+    }
+    if (node.contains("args") && node["args"].is_object()) {
+        call.args = node["args"];
+    } else {
+        call.args = json::object();
+    }
+    return true;
+}
+
+void appendToolCalls(const json& node, std::vector<AIToolCall>& calls) {
+    if (node.is_array()) {
+        for (const auto& item : node) {
+            appendToolCalls(item, calls);
+        }
+        return;
+    }
+    if (!node.is_object()) {
+        return;
+    }
+    if (node.contains("tools") && node["tools"].is_array()) {
+        for (const auto& item : node["tools"]) {
+            AIToolCall call;
+            if (parseOneToolCall(item, call)) {
+                calls.push_back(std::move(call));
             }
         }
-    } catch (...) {
-        result.isToolCall = false;
+        return;
     }
-    return result;
+    AIToolCall call;
+    if (parseOneToolCall(node, call)) {
+        calls.push_back(std::move(call));
+    }
+}
+
+}  // namespace
+
+std::vector<AIToolCall> AIConfig::parseAIResponse(const std::string& response) const {
+    std::vector<AIToolCall> calls;
+    size_t pos = 0;
+    while (pos < response.size()) {
+        const std::string chunk = extractBalancedJson(response, pos);
+        if (chunk.empty()) {
+            break;
+        }
+        try {
+            appendToolCalls(json::parse(chunk), calls);
+        } catch (...) {
+        }
+    }
+
+    std::vector<AIToolCall> unique;
+    for (auto& call : calls) {
+        bool duplicated = false;
+        for (const auto& seen : unique) {
+            if (seen.toolName == call.toolName && seen.args.dump() == call.args.dump()) {
+                duplicated = true;
+                break;
+            }
+        }
+        if (!duplicated) {
+            unique.push_back(std::move(call));
+        }
+    }
+    return unique;
 }
 
 std::string AIConfig::buildFollowUpPrompt(
@@ -131,13 +179,13 @@ std::string AIConfig::buildFollowUpPrompt(
 {
     std::ostringstream oss;
     oss << "下面是用户说的话：" << userInput << "\n"
-        << "已调用的工具及返回结果：\n" << toolHistory.dump(4) << "\n";
+        << "已调用的工具及返回结果：\n" << toolHistory.dump() << "\n";
     if (forceAnswer) {
         oss << "请不要再调用工具，根据以上结果用自然语言回答用户。";
     } else {
-        oss << "若仍需另一个未使用过的工具，只输出 JSON："
-            << "{\"tool\":\"工具名\",\"args\":{\"query\":\"检索词\"}}，不要输出其它文字。\n"
-            << "若信息已足够，直接用自然语言回答用户，不要输出 JSON。";
+        oss << "若仍需工具且不依赖未给出的中间结果，可一次输出多个："
+            << "{\"tools\":[{\"tool\":\"工具名\",\"args\":{\"query\":\"检索词\"}}]}，不要输出其它文字。\n"
+            << "不要重复相同的工具和检索词。若信息已足够，直接用自然语言回答用户，不要输出 JSON。";
     }
     return oss.str();
 }

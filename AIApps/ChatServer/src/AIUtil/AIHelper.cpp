@@ -139,30 +139,48 @@ std::string AIHelper::chat(int userId,std::string userName, std::string sessionI
         }
 
         const bool forceAnswer = toolCalls >= kMaxToolCalls;
-        AIToolCall call = forceAnswer ? AIToolCall{} : config.parseAIResponse(lastText);
-        if (!call.isToolCall || !registry.hasTool(call.toolName)) {
+        std::vector<AIToolCall> calls;
+        if (!forceAnswer) {
+            calls = config.parseAIResponse(lastText);
+        }
+
+        std::vector<AIToolCall> pending;
+        for (auto& call : calls) {
+            if (!registry.hasTool(call.toolName)) {
+                continue;
+            }
+            pending.push_back(std::move(call));
+        }
+        if (pending.empty()) {
             break;
         }
 
-        json toolResult;
-        try {
-            toolResult = registry.invoke(call.toolName, call.args);
-            std::cout << "Tool call success: " << call.toolName << std::endl;
-        } catch (const std::exception& e) {
-            toolResult = json{ {"error", e.what()} };
-            std::cout << "Tool call failed: " << e.what() << std::endl;
+        const int remaining = kMaxToolCalls - toolCalls;
+        if (static_cast<int>(pending.size()) > remaining) {
+            pending.resize(static_cast<size_t>(remaining));
         }
 
-        if (call.toolName == "search_knowledge") {
-            mergeKnowledgeSources(toolResult);
-        }
+        for (const auto& call : pending) {
+            json toolResult;
+            try {
+                toolResult = registry.invoke(call.toolName, call.args);
+                std::cout << "Tool call success: " << call.toolName << std::endl;
+            } catch (const std::exception& e) {
+                toolResult = json{ {"error", e.what()} };
+                std::cout << "Tool call failed: " << e.what() << std::endl;
+            }
 
-        json entry;
-        entry["tool"] = call.toolName;
-        entry["args"] = call.args;
-        entry["result"] = toolResult;
-        toolHistory.push_back(std::move(entry));
-        ++toolCalls;
+            if (call.toolName == "search_knowledge") {
+                mergeKnowledgeSources(toolResult);
+            }
+
+            json entry;
+            entry["tool"] = call.toolName;
+            entry["args"] = call.args;
+            entry["result"] = toolResult;
+            toolHistory.push_back(std::move(entry));
+            ++toolCalls;
+        }
         prompt = config.buildFollowUpPrompt(userQuestion, toolHistory, toolCalls >= kMaxToolCalls);
     }
 

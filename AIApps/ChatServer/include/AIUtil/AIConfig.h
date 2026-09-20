@@ -19,15 +19,13 @@ struct AITool {
 struct AIToolCall {
     std::string toolName;
     json args;
-    bool isToolCall = false;
 };
-
 
 class AIConfig {
 public:
     bool loadFromFile(const std::string& path);
     std::string buildPrompt(const std::string& userInput) const;
-    AIToolCall parseAIResponse(const std::string& response) const;
+    std::vector<AIToolCall> parseAIResponse(const std::string& response) const;
     std::string buildFollowUpPrompt(const std::string& userInput, const json& toolHistory, bool forceAnswer) const;
 
 private:
