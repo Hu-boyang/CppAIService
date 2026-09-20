@@ -9,8 +9,10 @@
 
 namespace {
 
+// 这两个函数作用主要是对上传文件的文件名校验和清晰
 constexpr size_t kMaxKbBytes = 1024 * 1024;
 
+// 将文件扩展名转换为小写
 std::string toLowerCopy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
         return static_cast<char>(std::tolower(c));
@@ -18,6 +20,7 @@ std::string toLowerCopy(std::string value) {
     return value;
 }
 
+// 对文件名进行校验，拒绝如下 . 或者 .. 或者 / 或者 \ 或者 .txt 或者 .md 以外的文件
 std::string safeKbFilename(const std::string& raw) {
     std::string name = std::filesystem::path(raw).filename().string();
     if (name.empty() || name == "." || name == "..") {
@@ -57,12 +60,8 @@ void KbUploadHandler::handle(const http::HttpRequest& req, http::HttpResponse* r
         auto body = req.getBody();
         if (!body.empty()) {
             auto j = json::parse(body);
-            if (j.contains("filename") && j["filename"].is_string()) {
-                filename = j["filename"].get<std::string>();
-            }
-            if (j.contains("content") && j["content"].is_string()) {
-                content = j["content"].get<std::string>();
-            }
+            jsonGetString(j, "filename", filename);
+            jsonGetString(j, "content", content);
         }
         filename = safeKbFilename(filename);
         if (content.empty()) {

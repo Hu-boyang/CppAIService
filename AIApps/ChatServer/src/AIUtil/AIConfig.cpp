@@ -1,6 +1,13 @@
 #include"../include/AIUtil/AIConfig.h"
 
-bool AIConfig::loadFromFile(const std::string& path) {
+bool AIConfig::\
+
+
+
+
+
+
+loadFromFile(const std::string& path) {
     std::ifstream file(path);
     if (!file.is_open()) {
         std::cerr << "[AIConfig] Unable to open configuration file: " << path << std::endl;

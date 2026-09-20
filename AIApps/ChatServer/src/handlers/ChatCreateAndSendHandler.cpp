@@ -31,7 +31,7 @@ void ChatCreateAndSendHandler::handle(const http::HttpRequest& req, http::HttpRe
         auto body = req.getBody();
         if (!body.empty()) {
             auto j = json::parse(body);
-            if (j.contains("question")) userQuestion = j["question"];
+            jsonGetString(j, "question", userQuestion);
         }
 
         auto created = server_->createEmptySession(userId);

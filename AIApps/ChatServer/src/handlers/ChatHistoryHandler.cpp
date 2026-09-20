@@ -29,7 +29,7 @@ void ChatHistoryHandler::handle(const http::HttpRequest& req, http::HttpResponse
         auto body = req.getBody();
         if (!body.empty()) {
             auto j = json::parse(body);
-            if (j.contains("sessionId")) sessionId = j["sessionId"];
+            jsonGetString(j, "sessionId", sessionId);
         }
 
         std::vector<std::pair<std::string, long long>> messages;

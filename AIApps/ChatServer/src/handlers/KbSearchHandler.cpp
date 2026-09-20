@@ -22,9 +22,7 @@ void KbSearchHandler::handle(const http::HttpRequest& req, http::HttpResponse* r
         auto body = req.getBody();
         if (!body.empty()) {
             auto j = json::parse(body);
-            if (j.contains("query") && j["query"].is_string()) {
-                query = j["query"].get<std::string>();
-            }
+            jsonGetString(j, "query", query);
         }
         if (query.empty()) {
             throw std::runtime_error("检索内容为空");

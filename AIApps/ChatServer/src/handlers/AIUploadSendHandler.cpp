@@ -27,8 +27,8 @@ void AIUploadSendHandler::handle(const http::HttpRequest& req, http::HttpRespons
         std::string imageBase64;
         if (!body.empty()) {
             auto j = json::parse(body);
-            if (j.contains("filename")) filename = j["filename"];
-            if (j.contains("image")) imageBase64 = j["image"];
+            jsonGetString(j, "filename", filename);
+            jsonGetString(j, "image", imageBase64);
         }
         if (imageBase64.empty())
         {

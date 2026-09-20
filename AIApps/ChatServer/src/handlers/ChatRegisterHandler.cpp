@@ -5,8 +5,21 @@ void ChatRegisterHandler::handle(const http::HttpRequest& req, http::HttpRespons
 {
     
     json parsed = json::parse(req.getBody());
-    std::string username = parsed["username"];
-    std::string password = parsed["password"];
+    std::string username;
+    std::string password;
+    if (!jsonGetString(parsed, "username", username)
+        || !jsonGetString(parsed, "password", password)) {
+        json failureResp;
+        failureResp["status"] = "error";
+        failureResp["message"] = "username or password missing";
+        std::string failureBody = failureResp.dump(4);
+        resp->setStatusLine(req.getVersion(), http::HttpResponse::k400BadRequest, "Bad Request");
+        resp->setCloseConnection(true);
+        resp->setContentType("application/json");
+        resp->setContentLength(failureBody.size());
+        resp->setBody(failureBody);
+        return;
+    }
 
 
     int userId = insertUser(username, password);

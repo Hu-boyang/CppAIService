@@ -24,9 +24,7 @@ void ChatSpeechHandler::handle(const http::HttpRequest& req, http::HttpResponse*
         auto body = req.getBody();
         if (!body.empty()) {
             auto j = json::parse(body);
-            if (j.contains("text")) {
-                text = j["text"].get<std::string>();
-            }
+            jsonGetString(j, "text", text);
         }
 
         const char* secretEnv = std::getenv("BAIDU_CLIENT_SECRET");

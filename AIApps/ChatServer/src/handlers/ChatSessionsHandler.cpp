@@ -48,6 +48,7 @@ std::string sessionSummaryFromMessages(const std::vector<std::pair<std::string, 
 
 }  // namespace
 
+// 侧边栏所有 session 的列表即所有会话的列表
 void ChatSessionsHandler::handle(const http::HttpRequest& req, http::HttpResponse* resp)
 {
     try

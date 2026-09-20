@@ -19,8 +19,12 @@ void ChatLoginHandler::handle(const http::HttpRequest& req, http::HttpResponse* 
     try
     {
         json parsed = json::parse(req.getBody());
-        std::string username = parsed["username"];
-        std::string password = parsed["password"];
+        std::string username;
+        std::string password;
+        if (!jsonGetString(parsed, "username", username)
+            || !jsonGetString(parsed, "password", password)) {
+            throw std::runtime_error("username or password missing");
+        }
 
         int userId = queryUserId(username, password);
         if (userId != -1)

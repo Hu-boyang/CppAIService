@@ -1,6 +1,6 @@
 #include "../include/handlers/ChatSendHandler.h"
 
-
+// 前端在输入框输入一句话然后点发送后端调用这个函数
 void ChatSendHandler::handle(const http::HttpRequest& req, http::HttpResponse* resp)
 {
     try
@@ -32,8 +32,8 @@ void ChatSendHandler::handle(const http::HttpRequest& req, http::HttpResponse* r
         auto body = req.getBody();
         if (!body.empty()) {
             auto j = json::parse(body);
-            if (j.contains("question")) userQuestion = j["question"];
-            if (j.contains("sessionId")) sessionId = j["sessionId"];
+            jsonGetString(j, "question", userQuestion);
+            jsonGetString(j, "sessionId", sessionId);
         }
         if (sessionId.empty()) {
             throw std::runtime_error("缺少 sessionId");

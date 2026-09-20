@@ -1,5 +1,6 @@
 #include "../include/handlers/KbPageHandler.h"
 
+// 就是获取知识库的 html 页面
 void KbPageHandler::handle(const http::HttpRequest& req, http::HttpResponse* resp)
 {
     try
