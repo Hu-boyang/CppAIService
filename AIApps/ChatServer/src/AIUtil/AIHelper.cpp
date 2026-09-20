@@ -120,8 +120,9 @@ std::string AIHelper::chat(int userId,std::string userName, std::string sessionI
     json toolHistory = json::array();
     std::string prompt = config.buildPrompt(userQuestion);
     std::string lastText;
-    constexpr int kMaxToolCalls = 3;
-    int toolCalls = 0;
+    constexpr int kMaxToolsPerRound = 3;
+    constexpr int kMaxLlmRounds = 8;
+    int llmRounds = 0;
 
     const auto history = GetMessages();
 
@@ -138,9 +139,11 @@ std::string AIHelper::chat(int userId,std::string userName, std::string sessionI
             break;
         }
 
-        const bool forceAnswer = toolCalls >= kMaxToolCalls;
+        ++llmRounds;
+
+        const bool lastAllowedRound = llmRounds >= kMaxLlmRounds;
         std::vector<AIToolCall> calls;
-        if (!forceAnswer) {
+        if (!lastAllowedRound) {
             calls = config.parseAIResponse(lastText);
         }
 
@@ -155,9 +158,8 @@ std::string AIHelper::chat(int userId,std::string userName, std::string sessionI
             break;
         }
 
-        const int remaining = kMaxToolCalls - toolCalls;
-        if (static_cast<int>(pending.size()) > remaining) {
-            pending.resize(static_cast<size_t>(remaining));
+        if (static_cast<int>(pending.size()) > kMaxToolsPerRound) {
+            pending.resize(static_cast<size_t>(kMaxToolsPerRound));
         }
 
         for (const auto& call : pending) {
@@ -179,9 +181,9 @@ std::string AIHelper::chat(int userId,std::string userName, std::string sessionI
             entry["args"] = call.args;
             entry["result"] = toolResult;
             toolHistory.push_back(std::move(entry));
-            ++toolCalls;
         }
-        prompt = config.buildFollowUpPrompt(userQuestion, toolHistory, toolCalls >= kMaxToolCalls);
+        const bool forceAnswer = llmRounds + 1 >= kMaxLlmRounds;
+        prompt = config.buildFollowUpPrompt(userQuestion, toolHistory, forceAnswer);
     }
 
     commitTurn(userId, userName, sessionId, userQuestion, lastText);
@@ -226,6 +228,7 @@ json AIHelper::executeCurl(const json& payload) {
 
     std::string payloadStr = payload.dump();
 
+    // 对 curl 选项进行设置
     curl_easy_setopt(curl, CURLOPT_URL, strategy->getApiUrl().c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payloadStr.c_str());
@@ -239,6 +242,7 @@ json AIHelper::executeCurl(const json& payload) {
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 90L);
 
+    // 这段代码执行 curl 指令
     CURLcode res = curl_easy_perform(curl);
     long httpCode = 0;
     double totalTime = 0;
