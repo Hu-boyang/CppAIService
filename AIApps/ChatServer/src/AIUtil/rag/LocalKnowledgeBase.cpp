@@ -1,6 +1,7 @@
 #include "AIUtil/rag/LocalKnowledgeBase.h"
 #include "AIUtil/rag/DocumentLoader.h"
 #include "AIUtil/rag/TextChunker.h"
+#include "utils/JsonUtil.h"
 
 #include <algorithm>
 #include <cctype>
@@ -16,81 +17,9 @@
 namespace rag {
 namespace {
 
-std::string readAll(const std::string& path) {
-    std::ifstream file(path);
-    if (!file.is_open()) {
-        return {};
-    }
-    std::ostringstream ss;
-    ss << file.rdbuf();
-    return ss.str();
-}
-
-std::string extractObject(const std::string& text, const std::string& key) {
-    const std::string needle = "\"" + key + "\"";
-    auto pos = text.find(needle);
-    if (pos == std::string::npos) {
-        return {};
-    }
-    pos = text.find('{', pos + needle.size());
-    if (pos == std::string::npos) {
-        return {};
-    }
-    int depth = 0;
-    for (size_t i = pos; i < text.size(); ++i) {
-        if (text[i] == '{') {
-            ++depth;
-        } else if (text[i] == '}') {
-            --depth;
-            if (depth == 0) {
-                return text.substr(pos, i - pos + 1);
-            }
-        }
-    }
-    return {};
-}
-
-bool extractString(const std::string& obj, const std::string& key, std::string& out) {
-    const std::string needle = "\"" + key + "\"";
-    auto pos = obj.find(needle);
-    if (pos == std::string::npos) {
-        return false;
-    }
-    pos = obj.find(':', pos + needle.size());
-    if (pos == std::string::npos) {
-        return false;
-    }
-    pos = obj.find('"', pos + 1);
-    if (pos == std::string::npos) {
-        return false;
-    }
-    auto end = obj.find('"', pos + 1);
-    if (end == std::string::npos) {
-        return false;
-    }
-    out = obj.substr(pos + 1, end - pos - 1);
-    return true;
-}
-
-bool extractInt(const std::string& obj, const std::string& key, int& out) {
-    const std::string needle = "\"" + key + "\"";
-    auto pos = obj.find(needle);
-    if (pos == std::string::npos) {
-        return false;
-    }
-    pos = obj.find(':', pos + needle.size());
-    if (pos == std::string::npos) {
-        return false;
-    }
-    pos = obj.find_first_of("0123456789-", pos + 1);
-    if (pos == std::string::npos) {
-        return false;
-    }
-    try {
-        out = std::stoi(obj.substr(pos));
-        return true;
-    } catch (const std::exception&) {
-        return false;
+void readIntField(const json& obj, const char* key, int& out) {
+    if (obj.contains(key) && obj[key].is_number_integer()) {
+        out = obj[key].get<int>();
     }
 }
 
@@ -147,19 +76,25 @@ std::string resolveKbDir(const std::string& kbDir, const std::string& configPath
 
 bool LocalKnowledgeBase::loadFromConfig(const std::string& configPath) {
     RagConfig config;
-    const std::string body = readAll(configPath);
-    if (body.empty()) {
+    std::ifstream file(configPath);
+    if (!file.is_open()) {
         std::cerr << "[RAG] config not found, using defaults: " << configPath << std::endl;
         config.kbDir = resolveKbDir(config.kbDir, configPath);
         return load(config);
     }
 
-    const std::string ragObj = extractObject(body, "rag");
-    if (!ragObj.empty()) {
-        extractString(ragObj, "kb_dir", config.kbDir);
-        extractInt(ragObj, "chunk_size", config.chunkSize);
-        extractInt(ragObj, "chunk_overlap", config.chunkOverlap);
-        extractInt(ragObj, "top_k", config.topK);
+    try {
+        json j;
+        file >> j;
+        if (j.contains("rag") && j["rag"].is_object()) {
+            const json& ragObj = j["rag"];
+            jsonGetString(ragObj, "kb_dir", config.kbDir);
+            readIntField(ragObj, "chunk_size", config.chunkSize);
+            readIntField(ragObj, "chunk_overlap", config.chunkOverlap);
+            readIntField(ragObj, "top_k", config.topK);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "[RAG] config parse failed, using defaults: " << e.what() << std::endl;
     }
     config.kbDir = resolveKbDir(config.kbDir, configPath);
     return load(config);
@@ -206,8 +141,8 @@ std::vector<RetrievedChunk> LocalKnowledgeBase::search(const std::string& query,
 
     auto ranked = index_.search(query, topK);
     results.reserve(ranked.size());
-    for (const auto& [docId, score] : ranked) {
-        const auto& chunk = index_.chunkAt(static_cast<size_t>(docId));
+    for (const auto& [chunkId, score] : ranked) {
+        const auto& chunk = index_.chunkAt(chunkId);
         results.push_back({chunk.source, chunk.text, score});
     }
     return results;

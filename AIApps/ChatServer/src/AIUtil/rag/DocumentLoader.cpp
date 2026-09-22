@@ -5,7 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <sstream>
+#include <iterator>
 
 namespace rag {
 namespace {
@@ -15,16 +15,6 @@ std::string toLowerExt(std::string ext) {
         return static_cast<char>(std::tolower(c));
     });
     return ext;
-}
-
-std::string readFileUtf8(const std::filesystem::path& path) {
-    std::ifstream in(path, std::ios::in | std::ios::binary);
-    if (!in.is_open()) {
-        return {};
-    }
-    std::ostringstream ss;
-    ss << in.rdbuf();
-    return ss.str();
 }
 
 }  // namespace
@@ -52,7 +42,11 @@ std::vector<Document> DocumentLoader::loadDirectory(const std::string& dir) {
         if (ec || doc.source.empty()) {
             doc.source = entry.path().filename().string();
         }
-        doc.text = readFileUtf8(entry.path());
+        std::ifstream in(entry.path(), std::ios::in | std::ios::binary);
+        if (!in.is_open()) {
+            continue;
+        }
+        doc.text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
         if (doc.text.empty()) {
             continue;
         }

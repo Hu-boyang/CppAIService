@@ -4,6 +4,7 @@
 namespace rag {
 namespace {
 
+// 分割段落
 std::vector<std::string> splitParagraphs(const std::string& text) {
     std::vector<std::string> paragraphs;
     std::string current;

@@ -44,17 +44,6 @@ void AIHelper::setStrategy(std::shared_ptr<AIStrategy> strat) {
   //  model_ = modelName;
 //}
 
-// 添加一条用户消息
-void AIHelper::addMessage(int userId,const std::string& userName, bool is_user,const std::string& userInput, std::string sessionId) {
-    const long long ms = nowMs();
-    {
-        std::lock_guard<std::mutex> lock(stateMutex_);
-        messages.push_back({ userInput,ms });
-    }
-    //消息队列异步入库
-    pushMessageToMysql(userId, userName, is_user, userInput, ms, sessionId);
-}
-
 void AIHelper::commitTurn(int userId, const std::string& userName, const std::string& sessionId,
     const std::string& question, const std::string& answer)
 {

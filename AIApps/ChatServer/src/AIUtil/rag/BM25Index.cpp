@@ -10,7 +10,7 @@ namespace rag {
 
 void BM25Index::build(std::vector<TextChunk> chunks) {
     chunks_ = std::move(chunks);
-    docLength_.assign(chunks_.size(), 0);
+    chunkLength_.assign(chunks_.size(), 0);
     inverted_.clear();
     avgdl_ = 0.0;
 
@@ -18,25 +18,27 @@ void BM25Index::build(std::vector<TextChunk> chunks) {
         return;
     }
 
-    double lengthSum = 0.0;
+    size_t lengthSum = 0;
     for (size_t i = 0; i < chunks_.size(); ++i) {
         auto tokens = tokenize(chunks_[i].text);
-        docLength_[i] = static_cast<int>(tokens.size());
-        lengthSum += static_cast<double>(tokens.size());
+        chunkLength_[i] = tokens.size();
+        lengthSum += tokens.size();
 
-        std::unordered_map<std::string, int> tf;
+        std::unordered_map<std::string, size_t> tf;
         for (const auto& token : tokens) {
             ++tf[token];
         }
+        // 某个 token 在那些块中出现的多
         for (const auto& [token, count] : tf) {
-            inverted_[token].push_back({static_cast<int>(i), count});
+            inverted_[token].push_back({i, count});
         }
     }
-    avgdl_ = lengthSum / static_cast<double>(chunks_.size());
+    avgdl_ = static_cast<double>(lengthSum) / static_cast<double>(chunks_.size());
 }
 
-std::vector<std::pair<int, double>> BM25Index::search(const std::string& query, int topK) const {
-    std::vector<std::pair<int, double>> ranked;
+// topK 表示最多把几段文本交给模型去处理
+std::vector<std::pair<size_t, double>> BM25Index::search(const std::string& query, int topK) const {
+    std::vector<std::pair<size_t, double>> ranked;
     if (chunks_.empty() || topK <= 0) {
         return ranked;
     }
@@ -48,9 +50,13 @@ std::vector<std::pair<int, double>> BM25Index::search(const std::string& query, 
 
     std::unordered_set<std::string> uniqueTokens(queryTokens.begin(), queryTokens.end());
     const double N = static_cast<double>(chunks_.size());
-    std::unordered_map<int, double> scores;
+
+    // 每个 chunks 在所有 token 中的总得分
+    std::unordered_map<size_t, double> scores;
 
     for (const auto& token : uniqueTokens) {
+
+        // inverted 代表一个 token 在所有块儿出现的分别次数的总和 token，vector<chunk_id, count>
         auto it = inverted_.find(token);
         if (it == inverted_.end()) {
             continue;
@@ -59,21 +65,22 @@ std::vector<std::pair<int, double>> BM25Index::search(const std::string& query, 
         const double df = static_cast<double>(postings.size());
         const double idf = std::log((N - df + 0.5) / (df + 0.5) + 1.0);
         for (const auto& posting : postings) {
+            // 这里就是根据 BM25 公式计算每个块的得分 其实感觉更像是 token 出现次数和块儿长度的比值
             const double tf = static_cast<double>(posting.tf);
-            const double dl = static_cast<double>(std::max(docLength_[posting.docId], 1));
+            const double dl = static_cast<double>(std::max(chunkLength_[posting.chunkId], size_t{1}));
             const double denom = tf + k1_ * (1.0 - b_ + b_ * (dl / std::max(avgdl_, 1.0)));
-            scores[posting.docId] += idf * (tf * (k1_ + 1.0)) / denom;
+            scores[posting.chunkId] += idf * (tf * (k1_ + 1.0)) / denom;
         }
     }
 
     ranked.reserve(scores.size());
-    for (const auto& [docId, score] : scores) {
-        ranked.emplace_back(docId, score);
+    for (const auto& [chunkId, score] : scores) {
+        ranked.emplace_back(chunkId, score);
     }
     std::sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
-    if (static_cast<int>(ranked.size()) > topK) {
+    if (ranked.size() > static_cast<size_t>(topK)) {
         ranked.resize(static_cast<size_t>(topK));
     }
     return ranked;

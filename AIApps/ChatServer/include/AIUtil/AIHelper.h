@@ -33,8 +33,6 @@ public:
 
     void setStrategy(std::shared_ptr<AIStrategy> strat);
 
-    // 添加一条消息
-    void addMessage(int userId, const std::string& userName, bool is_user, const std::string& userInput, std::string sessionId);
     // 恢复一条消息
     void restoreMessage(const std::string& userInput, long long ms);
 

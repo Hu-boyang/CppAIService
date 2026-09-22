@@ -39,14 +39,14 @@ void ChatSpeechHandler::handle(const http::HttpRequest& req, http::HttpResponse*
         std::string clientId(idEnv);
         std::string clientSecret(secretEnv);
         AISpeechProcessor speechProcessor(clientId, clientSecret);
-        std::string audio = speechProcessor.synthesize(text, "mp3-16k", "zh", 5, 5, 5);
+        std::vector<uint8_t> audio = speechProcessor.synthesize(text);
 
         resp->setStatusLine(req.getVersion(), http::HttpResponse::k200Ok, "OK");
         resp->setCloseConnection(false);
         resp->setContentType("audio/mpeg");
         resp->addHeader("Cache-Control", "no-store");
         resp->setContentLength(audio.size());
-        resp->setBody(audio);
+        resp->setBody(std::string(reinterpret_cast<const char*>(audio.data()), audio.size()));
     }
     catch (const std::exception& e)
     {

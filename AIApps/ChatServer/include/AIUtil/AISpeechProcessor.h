@@ -2,12 +2,12 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <cstdint>
 #include <mutex>
 #include <curl/curl.h>
 #include <fstream>
 #include <memory>
 #include <sstream>
-#include <thread>
 #include <chrono>
 
 #include "../../../../HttpServer/include/utils/JsonUtil.h"
@@ -25,12 +25,11 @@ public:
                           int channel = 1);
 
     // Returns mp3 bytes from Baidu short-text TTS.
-    std::string synthesize(const std::string& text,
-                           const std::string& format = "mp3-16k",
-                           const std::string& lang = "zh",
-                           int speed = 5,
-                           int pitch = 5,
-                           int volume = 5);
+    std::vector<uint8_t> synthesize(const std::string& text,
+                                    const std::string& lang = "zh",
+                                    int speed = 5,
+                                    int pitch = 5,
+                                    int volume = 5);
 
     void warmup();
 
@@ -42,16 +41,9 @@ private:
     std::string ensureToken();
     void invalidateToken();
     std::string fetchAccessToken();
-    std::string synthesizeChunk(const std::string& text, const std::string& lang,
-                                int speed, int pitch, int volume);
-    std::string synthesizeLongFormAudio(const std::string& text, const std::string& format,
-                                        const std::string& lang, int speed, int pitch, int volume);
-    std::string synthesizeLongFormUrl(const std::string& text, const std::string& format,
-                                      const std::string& lang, int speed, int pitch, int volume);
-    std::string downloadUrl(const std::string& url);
+    std::vector<uint8_t> synthesizeChunk(const std::string& text, const std::string& lang,
+                                         int speed, int pitch, int volume);
 
     static void applyCurlDefaults(CURL* curl, long timeoutSec);
-    static std::vector<std::string> splitText(const std::string& text, size_t maxChars);
-    static std::vector<std::string> splitSentences(const std::string& text, size_t maxChars);
     static std::string stripForTts(const std::string& text);
 };

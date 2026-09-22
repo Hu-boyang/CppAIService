@@ -5,6 +5,8 @@
 #include <iostream>
 #include <mutex>
 #include <cctype>
+#include <cstdint>
+#include <vector>
 
 namespace {
 
@@ -71,6 +73,13 @@ size_t onWriteData(void* buffer, size_t size, size_t nmemb, void* userp) {
     return size * nmemb;
 }
 
+size_t onWriteBytes(void* buffer, size_t size, size_t nmemb, void* userp) {
+    auto* out = static_cast<std::vector<uint8_t>*>(userp);
+    const auto* bytes = static_cast<const uint8_t*>(buffer);
+    out->insert(out->end(), bytes, bytes + size * nmemb);
+    return size * nmemb;
+}
+
 std::string curlEscape(CURL* curl, const std::string& value) {
     char* escaped = curl_easy_escape(curl, value.c_str(), static_cast<int>(value.size()));
     std::string out = escaped ? escaped : "";
@@ -80,7 +89,8 @@ std::string curlEscape(CURL* curl, const std::string& value) {
     return out;
 }
 
-bool looksLikeJson(const std::string& body) {
+// 判断是否是 JSON 格式
+bool isJsonBody(const std::vector<uint8_t>& body) {
     size_t i = 0;
     while (i < body.size() && (body[i] == ' ' || body[i] == '\n' || body[i] == '\r' || body[i] == '\t')) {
         ++i;
@@ -108,6 +118,7 @@ void AISpeechProcessor::applyCurlDefaults(CURL* curl, long timeoutSec) {
     curl_easy_setopt(curl, CURLOPT_SHARE, ttsShare());
 }
 
+// 设置 tokenCache 缓存
 std::string AISpeechProcessor::ensureToken() {
     auto& cache = tokenCache();
     std::lock_guard<std::mutex> lock(cache.mutex);
@@ -180,85 +191,6 @@ std::string AISpeechProcessor::fetchAccessToken() {
     return "";
 }
 
-std::vector<std::string> AISpeechProcessor::splitText(const std::string& text, size_t maxChars) {
-    std::vector<std::string> chunks;
-    if (text.empty()) {
-        return chunks;
-    }
-
-    std::string current;
-    size_t chars = 0;
-    for (size_t i = 0; i < text.size();) {
-        unsigned char c = static_cast<unsigned char>(text[i]);
-        size_t len = 1;
-        if ((c & 0x80) == 0) {
-            len = 1;
-        } else if ((c & 0xE0) == 0xC0) {
-            len = 2;
-        } else if ((c & 0xF0) == 0xE0) {
-            len = 3;
-        } else if ((c & 0xF8) == 0xF0) {
-            len = 4;
-        }
-        if (i + len > text.size()) {
-            len = 1;
-        }
-        if (chars >= maxChars && !current.empty()) {
-            chunks.push_back(current);
-            current.clear();
-            chars = 0;
-        }
-        current.append(text, i, len);
-        ++chars;
-        i += len;
-    }
-    if (!current.empty()) {
-        chunks.push_back(current);
-    }
-    return chunks;
-}
-
-std::vector<std::string> AISpeechProcessor::splitSentences(const std::string& text, size_t maxChars) {
-    std::vector<std::string> chunks;
-    if (text.empty()) {
-        return chunks;
-    }
-
-    auto utf8Len = [](unsigned char c) -> size_t {
-        if ((c & 0x80) == 0) return 1;
-        if ((c & 0xE0) == 0xC0) return 2;
-        if ((c & 0xF0) == 0xE0) return 3;
-        if ((c & 0xF8) == 0xF0) return 4;
-        return 1;
-    };
-    auto isStop = [](const std::string& s) {
-        return s == "。" || s == "！" || s == "？" || s == "；"
-            || s == "." || s == "!" || s == "?" || s == ";" || s == "\n";
-    };
-
-    std::string current;
-    size_t chars = 0;
-    for (size_t i = 0; i < text.size();) {
-        size_t len = utf8Len(static_cast<unsigned char>(text[i]));
-        if (i + len > text.size()) {
-            len = 1;
-        }
-        current.append(text, i, len);
-        ++chars;
-        const std::string ch = text.substr(i, len);
-        i += len;
-        if ((isStop(ch) && chars >= 8) || chars >= maxChars) {
-            chunks.push_back(current);
-            current.clear();
-            chars = 0;
-        }
-    }
-    if (!current.empty()) {
-        chunks.push_back(current);
-    }
-    return chunks;
-}
-
 std::string AISpeechProcessor::stripForTts(const std::string& text) {
     std::string out;
     out.reserve(text.size());
@@ -314,15 +246,15 @@ std::string AISpeechProcessor::stripForTts(const std::string& text) {
     return compact;
 }
 
-std::string AISpeechProcessor::synthesizeChunk(const std::string& text, const std::string& lang,
-                                               int speed, int pitch, int volume) {
+std::vector<uint8_t> AISpeechProcessor::synthesizeChunk(const std::string& text, const std::string& lang,
+                                                        int speed, int pitch, int volume) {
     const std::string token = ensureToken();
     CURL* curl = curl_easy_init();
     if (!curl) {
         throw std::runtime_error("Failed to initialize curl");
     }
 
-    std::string response;
+    std::vector<uint8_t> response;
     curl_easy_setopt(curl, CURLOPT_URL, "https://tsn.baidu.com/text2audio");
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
     applyCurlDefaults(curl, 12);
@@ -331,6 +263,7 @@ std::string AISpeechProcessor::synthesizeChunk(const std::string& text, const st
     headers = curl_slist_append(headers, "Content-Type: application/x-www-form-urlencoded");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
+    // 百度语音需要双重编码
     const std::string tex = curlEscape(curl, curlEscape(curl, text));
     std::ostringstream body;
     body << "tex=" << tex
@@ -346,7 +279,7 @@ std::string AISpeechProcessor::synthesizeChunk(const std::string& text, const st
     const std::string payload = body.str();
 
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, onWriteData);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, onWriteBytes);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
 
     CURLcode res = curl_easy_perform(curl);
@@ -358,11 +291,15 @@ std::string AISpeechProcessor::synthesizeChunk(const std::string& text, const st
     if (res != CURLE_OK) {
         throw std::runtime_error(std::string("TTS 请求失败: ") + curl_easy_strerror(res));
     }
-    if (looksLikeJson(response)) {
+
+    // 如果成功返回的是 mp3 不成功大概率返回 json 格式
+    if (isJsonBody(response)) {
         int errNo = 0;
         std::string message = "短文本 TTS 失败";
         try {
-            auto err = json::parse(response);
+            const std::string errText(reinterpret_cast<const char*>(response.data()),
+                                      response.size());
+            auto err = json::parse(errText);
             if (err.contains("err_no") && err["err_no"].is_number_integer()) {
                 errNo = err["err_no"].get<int>();
             }
@@ -384,182 +321,11 @@ std::string AISpeechProcessor::synthesizeChunk(const std::string& text, const st
     return response;
 }
 
-std::string AISpeechProcessor::downloadUrl(const std::string& url) {
-    CURL* curl = curl_easy_init();
-    if (!curl) {
-        return "";
-    }
-    std::string body;
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-    applyCurlDefaults(curl, 30);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, onWriteData);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
-    CURLcode res = curl_easy_perform(curl);
-    curl_easy_cleanup(curl);
-    if (res != CURLE_OK) {
-        return "";
-    }
-    return body;
-}
-
-std::string AISpeechProcessor::synthesizeLongFormUrl(const std::string& text,
-                                                     const std::string& format,
-                                                     const std::string& lang,
-                                                     int speed,
-                                                     int pitch,
-                                                     int volume) {
-    const std::string token = ensureToken();
-    CURL* curl = curl_easy_init();
-    if (!curl) {
-        throw std::runtime_error("Failed to initialize curl");
-    }
-
-    std::string response;
-    const std::string createUrl =
-        "https://aip.baidubce.com/rpc/2.0/tts/v1/create?access_token=" + token;
-    curl_easy_setopt(curl, CURLOPT_URL, createUrl.c_str());
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    applyCurlDefaults(curl, 30);
-
-    struct curl_slist* headers = nullptr;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-    headers = curl_slist_append(headers, "Accept: application/json");
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-    json body = {
-        {"text", json::array({text})},
-        {"format", format},
-        {"lang", lang},
-        {"speed", speed},
-        {"pitch", pitch},
-        {"volume", volume},
-        {"voice", 0},
-        {"enable_subtitle", 0}
-    };
-    std::string data = body.dump();
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, onWriteData);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-
-    CURLcode res = curl_easy_perform(curl);
-    curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
-    if (res != CURLE_OK) {
-        throw std::runtime_error(std::string("长文本 TTS 请求失败: ") + curl_easy_strerror(res));
-    }
-
-    std::string taskId;
-    try {
-        json resultJson = json::parse(response);
-        if (resultJson.contains("error_code") && resultJson["error_code"].is_number()
-            && resultJson["error_code"].get<int>() != 0) {
-            std::string msg = "长文本 TTS 创建失败";
-            if (resultJson.contains("error_msg") && resultJson["error_msg"].is_string()) {
-                msg = resultJson["error_msg"].get<std::string>();
-            }
-            throw std::runtime_error(std::to_string(resultJson["error_code"].get<int>()) + ": " + msg);
-        }
-        if (resultJson.contains("task_id") && resultJson["task_id"].is_string()) {
-            taskId = resultJson["task_id"].get<std::string>();
-        } else if (resultJson.contains("tasks_info") && resultJson["tasks_info"].is_array()
-                   && !resultJson["tasks_info"].empty()
-                   && resultJson["tasks_info"][0].contains("task_id")) {
-            taskId = resultJson["tasks_info"][0]["task_id"].get<std::string>();
-        }
-    } catch (const std::runtime_error&) {
-        throw;
-    } catch (...) {
-        throw std::runtime_error("长文本 TTS 创建任务失败: " + response);
-    }
-    if (taskId.empty()) {
-        throw std::runtime_error("长文本 TTS 未返回 task_id: " + response);
-    }
-
-    json query;
-    query["task_ids"] = json::array({taskId});
-    std::string speechUrl;
-    for (int loops = 0; loops < 40; ++loops) {
-        if (loops > 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        }
-        curl = curl_easy_init();
-        if (!curl) {
-            break;
-        }
-        response.clear();
-        const std::string queryUrl =
-            "https://aip.baidubce.com/rpc/2.0/tts/v1/query?access_token=" + token;
-        curl_easy_setopt(curl, CURLOPT_URL, queryUrl.c_str());
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-        applyCurlDefaults(curl, 20);
-        headers = nullptr;
-        headers = curl_slist_append(headers, "Content-Type: application/json");
-        headers = curl_slist_append(headers, "Accept: application/json");
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-        data = query.dump();
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, onWriteData);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-        res = curl_easy_perform(curl);
-        curl_slist_free_all(headers);
-        curl_easy_cleanup(curl);
-        if (res != CURLE_OK) {
-            break;
-        }
-        try {
-            json queryResult = json::parse(response);
-            if (queryResult.contains("tasks_info") && queryResult["tasks_info"].is_array()
-                && !queryResult["tasks_info"].empty()) {
-                json task = queryResult["tasks_info"][0];
-                if (task.contains("task_status") && task["task_status"].is_string()) {
-                    const std::string status = task["task_status"].get<std::string>();
-                    if (status == "Success" && task.contains("task_result")
-                        && task["task_result"].contains("speech_url")) {
-                        speechUrl = task["task_result"]["speech_url"].get<std::string>();
-                        break;
-                    }
-                    if (status == "Failure" || status == "Failed") {
-                        std::string fail = "长文本 TTS 任务失败";
-                        if (task.contains("task_result") && task["task_result"].contains("err_msg")) {
-                            fail += ": " + task["task_result"]["err_msg"].dump();
-                        }
-                        throw std::runtime_error(fail);
-                    }
-                }
-            }
-        } catch (const std::runtime_error&) {
-            throw;
-        } catch (...) {
-            break;
-        }
-    }
-    if (speechUrl.empty()) {
-        throw std::runtime_error("长文本 TTS 超时未完成");
-    }
-    return speechUrl;
-}
-
-std::string AISpeechProcessor::synthesizeLongFormAudio(const std::string& text,
-                                                       const std::string& format,
-                                                       const std::string& lang,
-                                                       int speed,
-                                                       int pitch,
-                                                       int volume) {
-    const std::string url = synthesizeLongFormUrl(text, format, lang, speed, pitch, volume);
-    std::string audio = downloadUrl(url);
-    if (audio.empty() || looksLikeJson(audio)) {
-        throw std::runtime_error("长文本 TTS 音频下载失败");
-    }
-    return audio;
-}
-
-std::string AISpeechProcessor::synthesize(const std::string& text,
-                                          const std::string& format,
-                                          const std::string& lang,
-                                          int speed,
-                                          int pitch,
-                                          int volume) {
+std::vector<uint8_t> AISpeechProcessor::synthesize(const std::string& text,
+                                                   const std::string& lang,
+                                                   int speed,
+                                                   int pitch,
+                                                   int volume) {
     if (text.empty()) {
         throw std::runtime_error("合成文本为空");
     }
@@ -570,18 +336,14 @@ std::string AISpeechProcessor::synthesize(const std::string& text,
         plain = text;
     }
 
-    auto finishLog = [&](const char* mode, const std::string& audio) {
+    auto finishLog = [&](const std::vector<uint8_t>& audio) {
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now() - started)
                             .count();
-        std::cout << "TTS " << mode
-                  << " bytes=" << audio.size()
-                  << " ms=" << ms << std::endl;
-        return audio;
+        std::cout << "TTS bytes=" << audio.size() << " ms=" << ms << std::endl;
     };
 
-    (void)format;
-    std::string audio;
+    std::vector<uint8_t> audio;
     try {
         audio = synthesizeChunk(plain, lang, speed, pitch, volume);
     } catch (const std::exception& firstError) {
@@ -609,9 +371,11 @@ std::string AISpeechProcessor::synthesize(const std::string& text,
     if (audio.empty()) {
         throw std::runtime_error("短文本 TTS 未返回音频");
     }
-    return finishLog("short-text", audio);
+    finishLog(audio);
+    return audio;
 }
 
+// 识别音频数据
 std::string AISpeechProcessor::recognize(const std::string& speechData,
                                          const std::string& format,
                                          int rate,

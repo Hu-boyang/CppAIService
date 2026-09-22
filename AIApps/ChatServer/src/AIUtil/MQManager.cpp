@@ -31,6 +31,7 @@ MQManager::MQManager(size_t poolSize)
 }
 
 void MQManager::publish(const std::string& queue, const std::string& msg) {
+    // fetch_add 是原子 +1 操作，保证线程安全
     size_t index = counter_.fetch_add(1) % poolSize_;
     auto& conn = pool_[index];
 
@@ -69,7 +70,8 @@ void RabbitMQThreadPool::worker(int id) {
         std::string consumer_tag = channel->BasicConsume(queue_name_, "", true, false, false);
 
         channel->BasicQos(consumer_tag, 1); 
-
+        
+        // shutdown 会把 stop_ 设置为 true，所以这里会退出循环
         while (!stop_) {
             AmqpClient::Envelope::ptr_t env;
             bool ok = channel->BasicConsumeMessage(consumer_tag, env, 500); // 500ms 

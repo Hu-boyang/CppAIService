@@ -1,6 +1,7 @@
 
 #include "../include/handlers/ChatHandler.h"
 
+// GET /chat 调用
 void ChatHandler::handle(const http::HttpRequest& req, http::HttpResponse* resp)
 {
 

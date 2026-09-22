@@ -10,6 +10,7 @@
 #include <chrono>
 #include <functional>
 
+// 这个类是给 rabbitMQ 发布任务
 class MQManager {
 public:
     static MQManager& instance() {
@@ -35,6 +36,7 @@ private:
     std::atomic<size_t> counter_;
 };
 
+// 这个类是给 rabbitMQ 消费任务
 class RabbitMQThreadPool {
 public:
     using HandlerFunc = std::function<void(const std::string&)>;
